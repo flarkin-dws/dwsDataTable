@@ -9,6 +9,16 @@
 
 .spinner {
   display: flex;
-  flex-direction: column;
   align-items: center;
+}
+
+/* Inventory warning styles */
+.inv-max-warning {
+  color: #c23934 !important;
+  font-weight: bold;
+}
+
+/* Make warning icons more visible */
+.lwc-datatable-cell {
+  font-size: 14px;
 }
