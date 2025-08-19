@@ -1,0 +1,35 @@
+<template>
+  <lightning-card
+    variant="Narrow"
+    title="Products for Approval"
+    icon-name="standard:products"
+  >
+    <!-- Show Spinner when Loading -->
+    <div if:true={isLoading} class="slds-spinner-container">
+      <div class="spinner">
+        <lightning-spinner
+          alternative-text="Loading"
+          size="medium"
+        ></lightning-spinner>
+      </div>
+    </div>
+
+    <!-- Display Data in Lightning Datatable -->
+    <lightning-datatable
+      if:false={isLoading}
+      key-field="id"
+      data={data}
+      columns={columns}
+      show-row-number-column
+      hide-checkbox-column
+      min-column-width="115"
+      column-widths-mode="auto"
+    >
+    </lightning-datatable>
+
+    <!-- Display Error -->
+    <template if:true={error}>
+      <p>Error: {error.body.message}</p>
+    </template>
+  </lightning-card>
+</template>
