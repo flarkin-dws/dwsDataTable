@@ -1,0 +1,40 @@
+.slds-spinner-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+}
+
+.spinner {
+  display: flex;
+  align-items: center;
+}
+
+/* Inventory warning styles */
+.inv-max-warning {
+  color: #c23934 !important;
+  font-weight: bold;
+}
+
+/* Make warning icons more visible */
+.lwc-datatable-cell {
+  font-size: 14px;
+}
+
+/* Enhanced inventory warning styles */
+.inv-max-warning {
+  color: #c23934 !important;
+  font-weight: bold;
+  background-color: #fef7f7;
+  border-left: 3px solid #c23934;
+  padding-left: 8px;
+}
+
+/* Warning icon styling */
+.warning-icon {
+  color: #c23934;
+  font-size: 16px;
+  margin-right: 4px;
+}
