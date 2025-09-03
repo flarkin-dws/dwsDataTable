@@ -289,4 +289,139 @@ public class OpportunityControllerTestkb {
     System.assert(exceptionThrown, 'An AuraHandledException should have been thrown');
     Test.stopTest();
   }
+
+  @isTest
+  static void testGetOpportunityLineItemsByOrder() {
+    // Query for the Opportunity
+    Opportunity opp = [
+      SELECT Id
+      FROM Opportunity
+      WHERE Name = :OPPORTUNITY_NAME
+      LIMIT 1
+    ];
+
+    // Create a test Order linked to the Opportunity
+    Order testOrder = new Order(
+      AccountId = [SELECT Id FROM Account WHERE Name = :ACCOUNT_NAME LIMIT 1].Id,
+      EffectiveDate = Date.today(),
+      Status = 'Draft',
+      OpportunityId = opp.Id,
+      Pricebook2Id = Test.getStandardPricebookId()
+    );
+    insert testOrder;
+
+    Test.startTest();
+    List<OpportunityLineItem> result = OpportunityController.getOpportunityLineItemsByOrder(
+      testOrder.Id
+    );
+    Test.stopTest();
+
+    // Verify the results
+    System.assertNotEquals(null, result, 'Result should not be null');
+    System.assertEquals(2, result.size(), 'Should have 2 line items');
+  }
+
+  @isTest
+  static void testGetOpportunityLineItemsByOrderWithDetails() {
+    // Query for the Opportunity
+    Opportunity opp = [
+      SELECT Id
+      FROM Opportunity
+      WHERE Name = :OPPORTUNITY_NAME
+      LIMIT 1
+    ];
+
+    // Create a test Order linked to the Opportunity
+    Order testOrder = new Order(
+      AccountId = [SELECT Id FROM Account WHERE Name = :ACCOUNT_NAME LIMIT 1].Id,
+      EffectiveDate = Date.today(),
+      Status = 'Draft',
+      OpportunityId = opp.Id,
+      Pricebook2Id = Test.getStandardPricebookId()
+    );
+    insert testOrder;
+
+    Test.startTest();
+    Map<String, Object> result = OpportunityController.getOpportunityLineItemsByOrderWithDetails(
+      testOrder.Id
+    );
+    Test.stopTest();
+
+    // Verify the results
+    System.assertNotEquals(null, result, 'Result should not be null');
+    System.assertEquals(true, result.get('hasOpportunity'), 'Should have an associated opportunity');
+    System.assertEquals(opp.Id, result.get('opportunityId'), 'Opportunity ID should match');
+    List<OpportunityLineItem> lineItems = (List<OpportunityLineItem>)result.get('lineItems');
+    System.assertEquals(2, lineItems.size(), 'Should have 2 line items');
+  }
+
+  @isTest
+  static void testGetOpportunityLineItemsByOrderWithNoOpportunity() {
+    // Create a test Order without linking to an Opportunity
+    Order testOrder = new Order(
+      AccountId = [SELECT Id FROM Account WHERE Name = :ACCOUNT_NAME LIMIT 1].Id,
+      EffectiveDate = Date.today(),
+      Status = 'Draft',
+      Pricebook2Id = Test.getStandardPricebookId()
+    );
+    insert testOrder;
+
+    Test.startTest();
+    Map<String, Object> result = OpportunityController.getOpportunityLineItemsByOrderWithDetails(
+      testOrder.Id
+    );
+    Test.stopTest();
+
+    // Verify the results
+    System.assertNotEquals(null, result, 'Result should not be null');
+    System.assertEquals(false, result.get('hasOpportunity'), 'Should not have an associated opportunity');
+    List<OpportunityLineItem> lineItems = (List<OpportunityLineItem>)result.get('lineItems');
+    System.assertEquals(0, lineItems.size(), 'Should have no line items');
+  }
+
+  @isTest
+  static void testGetOpportunityLineItemsByOrderWithInvalidId() {
+    Test.startTest();
+    Boolean exceptionThrown = false;
+    try {
+      OpportunityController.getOpportunityLineItemsByOrder('invalid_id');
+      System.assert(false, 'Should have thrown an exception');
+    } catch (AuraHandledException e) {
+      exceptionThrown = true;
+    }
+    System.assert(exceptionThrown, 'An AuraHandledException should have been thrown');
+
+    exceptionThrown = false;
+    try {
+      OpportunityController.getOpportunityLineItemsByOrderWithDetails('invalid_id');
+      System.assert(false, 'Should have thrown an exception');
+    } catch (AuraHandledException e) {
+      exceptionThrown = true;
+    }
+    System.assert(exceptionThrown, 'An AuraHandledException should have been thrown');
+    Test.stopTest();
+  }
+
+  @isTest
+  static void testGetOpportunityLineItemsByOrderWithBlankId() {
+    Test.startTest();
+    Boolean exceptionThrown = false;
+    try {
+      OpportunityController.getOpportunityLineItemsByOrder('');
+      System.assert(false, 'Should have thrown an exception');
+    } catch (AuraHandledException e) {
+      exceptionThrown = true;
+    }
+    System.assert(exceptionThrown, 'An AuraHandledException should have been thrown');
+
+    exceptionThrown = false;
+    try {
+      OpportunityController.getOpportunityLineItemsByOrderWithDetails('');
+      System.assert(false, 'Should have thrown an exception');
+    } catch (AuraHandledException e) {
+      exceptionThrown = true;
+    }
+    System.assert(exceptionThrown, 'An AuraHandledException should have been thrown');
+    Test.stopTest();
+  }
 }

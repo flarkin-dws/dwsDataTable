@@ -20,39 +20,42 @@ public with sharing class OrderController {
     }
 
     try {
-      // Dynamically construct the query
-      String query =
-        'SELECT Id, ProcessInstance.TargetObjectId FROM ' +
-        objectName +
-        ' WHERE Id = :recordId LIMIT 1';
-      SObject record = Database.query(query);
-
-      // Casting to the appropriate object type and process
       String targetObjectId;
-      if (record instanceof ProcessInstanceStep) {
-        ProcessInstanceStep step = (ProcessInstanceStep) record;
-        if (
-          step.ProcessInstance == null ||
-          step.ProcessInstance.TargetObjectId == null
-        ) {
-          throw new AuraHandledException(
-            'The ProcessInstance or TargetObjectId is null.'
-          );
+      
+      if (objectName == 'Order') {
+        targetObjectId = recordId;
+      } else if (objectName == 'ProcessInstanceStep' || objectName == 'ProcessInstanceWorkitem') {
+        // For approval process records, we need to query differently
+        
+        // First try ProcessInstanceWorkitem
+        List<ProcessInstanceWorkitem> workItems = [
+          SELECT ProcessInstance.TargetObjectId 
+          FROM ProcessInstanceWorkitem 
+          WHERE Id = :recordId
+          LIMIT 1
+        ];
+        
+        if (!workItems.isEmpty() && workItems[0].ProcessInstance != null) {
+          targetObjectId = workItems[0].ProcessInstance.TargetObjectId;
+        } else {
+          // If not found, try ProcessInstanceStep
+          List<ProcessInstanceStep> steps = [
+            SELECT ProcessInstance.TargetObjectId 
+            FROM ProcessInstanceStep 
+            WHERE Id = :recordId
+            LIMIT 1
+          ];
+          
+          if (!steps.isEmpty() && steps[0].ProcessInstance != null) {
+            targetObjectId = steps[0].ProcessInstance.TargetObjectId;
+          }
         }
-        targetObjectId = step.ProcessInstance.TargetObjectId;
-      } else if (record instanceof ProcessInstanceWorkitem) {
-        ProcessInstanceWorkitem workItem = (ProcessInstanceWorkitem) record;
-        if (
-          workItem.ProcessInstance == null ||
-          workItem.ProcessInstance.TargetObjectId == null
-        ) {
-          throw new AuraHandledException(
-            'The ProcessInstance or TargetObjectId is null.'
-          );
+        
+        if (String.isBlank(targetObjectId)) {
+          throw new AuraHandledException('Could not find target Order record.');
         }
-        targetObjectId = workItem.ProcessInstance.TargetObjectId;
       } else {
-        throw new AuraHandledException('Unexpected object type.');
+        throw new AuraHandledException('Unexpected object type: ' + objectName);
       }
 
       System.debug('TargetObjectId: ' + targetObjectId);

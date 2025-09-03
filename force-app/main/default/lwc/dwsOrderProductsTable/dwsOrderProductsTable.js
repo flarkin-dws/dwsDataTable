@@ -1,18 +1,5 @@
-import { api, LightningElement, wire } from "lwc";
-import { ShowToastEvent } from "lightning/platformShowToastEvent";
-import { getRecord } from "lightning/uiRecordApi";
-import getOpportunities from "@salesforce/apex/OpportunityController.getOpportunities";
+import { api, LightningElement } from "lwc";
 import getOrder from "@salesforce/apex/OrderController.getOrder";
-
-// OpportunityLineItem imports
-import OLI_PRODUCT_NAME_FIELD from "@salesforce/schema/OpportunityLineItem.Product_Name__c";
-import OLI_PRODUCT_CODE_FIELD from "@salesforce/schema/OpportunityLineItem.ProductCode";
-import OLI_QUANTITY_FIELD from "@salesforce/schema/OpportunityLineItem.Quantity";
-import OLI_UNIT_PRICE_FIELD from "@salesforce/schema/OpportunityLineItem.UnitPrice";
-import OLI_COST_PLUS_TERMS_FIELD from "@salesforce/schema/OpportunityLineItem.Cost_Plus_Terms__c";
-import OLI_UNIT_FIELD from "@salesforce/schema/OpportunityLineItem.Unit__c";
-import OLI_TOTAL_PRICE_FIELD from "@salesforce/schema/OpportunityLineItem.TotalPrice";
-import OLI_RESOURCE_GROUPING_FIELD from "@salesforce/schema/OpportunityLineItem.Resource_Grouping__c";
 
 // OrderItem imports
 import ORDER_PRODUCT_FIELD from "@salesforce/schema/OrderItem.Product_Name__c";
@@ -22,71 +9,8 @@ import ORDER_UNIT_PRICE_FIELD from "@salesforce/schema/OrderItem.UnitPrice";
 import ORDER_TOTAL_PRICE_FIELD from "@salesforce/schema/OrderItem.TotalPrice";
 import DESCRIPTION_FIELD from "@salesforce/schema/OrderItem.Description";
 
-// ProductItem imports - Note: These are now handled directly in the data processing
-
-// OpportunityLineItem columns
-const opportunityColumns = [
-  {
-    label: "Product Name",
-    fieldName: OLI_PRODUCT_NAME_FIELD.fieldApiName,
-    type: "text",
-    iconName: "standard:product",
-    cellAttributes: { iconName: "standard:product" },
-    initialWidth: 120
-  },
-  {
-    label: "Quantity",
-    fieldName: OLI_QUANTITY_FIELD.fieldApiName,
-    type: "number",
-    iconName: "standard:indicator_result",
-    initialWidth: 120
-  },
-  {
-    label: "Unit Price",
-    fieldName: OLI_UNIT_PRICE_FIELD.fieldApiName,
-    type: "currency",
-    iconName: "standard:price_book_entries",
-    maxWidth: 120
-  },
-  {
-    label: "Cost Plus Terms",
-    fieldName: OLI_COST_PLUS_TERMS_FIELD.fieldApiName,
-    type: "text",
-    iconName: "standard:price_adjustment_matrix"
-  },
-  {
-    label: "Unit",
-    fieldName: OLI_UNIT_FIELD.fieldApiName,
-    type: "text",
-    iconName: "standard:catalog",
-    maxWidth: 120
-  },
-  {
-    label: "Total Price",
-    fieldName: OLI_TOTAL_PRICE_FIELD.fieldApiName,
-    type: "currency",
-    iconName: "standard:currency",
-    initialWidth: 140
-  },
-  {
-    label: "Product Code",
-    fieldName: OLI_PRODUCT_CODE_FIELD.fieldApiName,
-    type: "text",
-    iconName: "standard:product_item",
-    cellAttributes: { iconName: "standard:product_item" },
-    maxWidth: 143
-  },
-  {
-    label: "Resource Grouping",
-    fieldName: OLI_RESOURCE_GROUPING_FIELD.fieldApiName,
-    type: "text",
-    iconName: "standard:buyer_group",
-    cellAttributes: { iconName: "standard:buyer_group" }
-  }
-];
-
 // OrderItem columns
-const productColumns = [
+const orderProductColumns = [
   {
     label: "Product",
     fieldName: ORDER_PRODUCT_FIELD.fieldApiName,
@@ -165,48 +89,101 @@ export default class DwsOrderProductsTable extends LightningElement {
   columns;
   error;
 
+  // Computed property to check if we should display the component
+  get shouldDisplay() {
+    // Check if recordId exists and starts with '801'
+    if (!this.recordId) return false;
+    
+    // For approval processes, we need to check the target object ID
+    if (this.objectId && String(this.objectId).startsWith('801')) {
+      return true;
+    }
+    
+    // For direct Order record pages
+    return String(this.recordId).startsWith('801');
+  }
+
   connectedCallback() {
+    // Add debug logging for initialization
+    console.log('Component initialized with:', {
+      recordId: this.recordId,
+      objectApiName: this.objectApiName,
+      type: typeof this.objectApiName
+    });
+    
+    // Ensure objectApiName is set for Order record pages
+    if (!this.objectApiName && this.recordId && this.recordId.startsWith('801')) {
+      console.log('Setting objectApiName to Order based on record ID prefix');
+      this.objectApiName = 'Order';
+    }
+    
     this.fetchData();
   }
 
   fetchData() {
+    console.log('fetchData called with recordId:', this.recordId, 'objectApiName:', this.objectApiName);
+
     if (this.objectApiName === 'ProcessInstanceWorkitem' || this.objectApiName === 'ProcessInstanceStep') {
-      // Try Opportunity first
-      getOpportunities({
+      // Handle approval pages - get order products through the approval process
+      console.log('Fetching data for approval page...');
+      getOrder({
         recordId: this.recordId,
         objectName: this.objectApiName
       })
         .then((result) => {
-          if (result && result.lineItems && result.lineItems.length > 0) {
-            this.isLoading = false;
-            this.data = result.lineItems;
-            this.columns = opportunityColumns;
-            this.objectId = result.targetObjectId;
-          } else {
-            // If no Opportunity data, try Order
-            return getOrder({
-              recordId: this.recordId,
-              objectName: this.objectApiName
-            });
-          }
-        })
-        .then((result) => {
+          console.log('getOrder result:', result);
           if (result && result.orderProducts && result.orderProducts.length > 0) {
             this.isLoading = false;
             // Process the data to add warning indicators
             this.data = this.processOrderData(result.orderProducts);
-            this.columns = productColumns;
+            this.columns = orderProductColumns;
             this.objectId = result.targetObjectId;
+            console.log('Successfully loaded', result.orderProducts.length, 'order products');
           } else {
-            console.warn("No data found for this ProcessInstanceWorkitem/Step.");
+            console.warn("No order products found for this ProcessInstanceWorkitem/Step.");
+            this.isLoading = false;
+            this.data = [];
           }
         })
         .catch((error) => {
           this.error = error;
-          console.error("Error retrieving data:", error);
+          console.error("Error retrieving order data:", error);
+          this.isLoading = false;
+        });
+    } else if (this.objectApiName === 'Order') {
+      // Handle Order record pages - get order products directly
+      console.log('Fetching data for Order page...');
+      getOrder({
+        recordId: this.recordId,
+        objectName: this.objectApiName
+      })
+        .then((result) => {
+          console.log('getOrder result:', result);
+          if (result && result.orderProducts && result.orderProducts.length > 0) {
+            this.isLoading = false;
+            // Process the data to add warning indicators
+            this.data = this.processOrderData(result.orderProducts);
+            this.columns = orderProductColumns;
+            console.log('Successfully loaded', result.orderProducts.length, 'order products');
+          } else {
+            console.warn("No order products found for this Order.");
+            this.isLoading = false;
+            this.data = [];
+          }
+        })
+        .catch((error) => {
+          console.error("Error retrieving order data:", {
+            error: error,
+            recordId: this.recordId,
+            objectApiName: this.objectApiName,
+            message: error.body?.message || error.message
+          });
+          this.error = error.body?.message || error.message || 'Unknown error occurred';
+          this.isLoading = false;
         });
     } else {
       console.warn("Unsupported object type:", this.objectApiName);
+      this.isLoading = false;
     }
   }
 

@@ -69,11 +69,10 @@ public class OrderControllerTest {
     // Create Order
     Order testOrder = new Order(
       Name = ORDER_NAME,
-      AccountId = '0011U000015RcblQAC',
+      AccountId = acc.Id,
       Status = 'Working',
       EffectiveDate = Date.today(),
-      Pricebook2Id = modifiedPB,
-      Location__c = '1311U000000ZMvF'
+      Pricebook2Id = modifiedPB
     );
     insert testOrder;
 
@@ -249,5 +248,169 @@ public class OrderControllerTest {
       System.assert(true, 'Exception thrown as expected');
     }
     Test.stopTest();
+  }
+
+  @isTest
+  public static void testGetOrderDirectly() {
+    // Query for the Order
+    Order ord = [
+      SELECT Id, Name, Location__c
+      FROM Order
+      WHERE Name = :ORDER_NAME
+      LIMIT 1
+    ];
+
+    Test.startTest();
+    Map<String, Object> result = OrderController.getOrder(
+      ord.Id,
+      'Order'
+    );
+    Test.stopTest();
+
+    // Verify the results
+    System.assertNotEquals(null, result, 'Result should not be null');
+    System.assertEquals(ord.Id, result.get('targetObjectId'), 'Target object ID should match');
+    List<OrderItem> orderProducts = (List<OrderItem>)result.get('orderProducts');
+    System.assertNotEquals(null, orderProducts, 'Order products should not be null');
+    System.assertEquals(2, orderProducts.size(), 'Should have 2 order products');
+  }
+
+  @isTest
+  public static void testGetOrderWithInventoryData() {
+    // Query for the Order
+    Order ord = [
+      SELECT Id
+      FROM Order
+      WHERE Name = :ORDER_NAME
+      LIMIT 1
+    ];
+
+    // Create a test Location
+    Schema.Location testLocation = new Schema.Location();
+    testLocation.Name = 'Test Location';
+    testLocation.LocationType = 'Warehouse';
+    testLocation.IsInventoryLocation = true;
+    insert testLocation;
+
+    // Update Order with Location
+    ord.Location__c = testLocation.Id;
+    update ord;
+
+    // Create ProductItem (inventory) records
+    Product2 product = [SELECT Id FROM Product2 WHERE Name = :PRODUCT_NAME LIMIT 1];
+    ProductItem inventory = new ProductItem(
+      Product2Id = product.Id,
+      LocationId = testLocation.Id,
+      QuantityOnHand = 100,
+      Maximum_Product_Inventory__c = 200
+    );
+    insert inventory;
+
+    Test.startTest();
+    Map<String, Object> result = OrderController.getOrder(
+      ord.Id,
+      'Order'
+    );
+    Test.stopTest();
+
+    // Verify the results
+    System.assertNotEquals(null, result, 'Result should not be null');
+    System.assertEquals(ord.Id, result.get('targetObjectId'), 'Target object ID should match');
+    List<Map<String, Object>> combinedData = (List<Map<String, Object>>)result.get('orderProducts');
+    System.assertNotEquals(null, combinedData, 'Combined data should not be null');
+    System.assertEquals(2, combinedData.size(), 'Should have 2 order products');
+
+    // Verify inventory data
+    for (Map<String, Object> item : combinedData) {
+      if (item.get('Product2Id') == product.Id) {
+        System.assertEquals(100, item.get('QuantityOnHand'), 'Quantity on hand should match');
+        System.assertEquals(200, item.get('Maximum_Product_Inventory__c'), 'Maximum inventory should match');
+      }
+    }
+  }
+
+  @isTest
+  public static void testGetOrderWithNoLocation() {
+    // Query for the Order (which has no Location__c set)
+    Order ord = [
+      SELECT Id
+      FROM Order
+      WHERE Name = :ORDER_NAME
+      LIMIT 1
+    ];
+
+    Test.startTest();
+    Map<String, Object> result = OrderController.getOrder(
+      ord.Id,
+      'Order'
+    );
+    Test.stopTest();
+
+    // Verify the results
+    System.assertNotEquals(null, result, 'Result should not be null');
+    List<Map<String, Object>> combinedData = (List<Map<String, Object>>)result.get('orderProducts');
+    System.assertNotEquals(null, combinedData, 'Combined data should not be null');
+    System.assertEquals(2, combinedData.size(), 'Should have 2 order products');
+
+    // Verify default inventory values
+    for (Map<String, Object> item : combinedData) {
+      System.assertEquals(0, item.get('QuantityOnHand'), 'Quantity on hand should default to 0');
+      System.assertEquals(0, item.get('Maximum_Product_Inventory__c'), 'Maximum inventory should default to 0');
+      System.assertEquals(false, item.get('hasWarning'), 'Should not have warning flag');
+    }
+  }
+
+  @isTest
+  public static void testGetOrderWithInventoryWarnings() {
+    // Query for the Order
+    Order ord = [
+      SELECT Id
+      FROM Order
+      WHERE Name = :ORDER_NAME
+      LIMIT 1
+    ];
+
+    // Create a test Location
+    Schema.Location testLocation = new Schema.Location();
+    testLocation.Name = 'Test Location';
+    testLocation.LocationType = 'Warehouse';
+    testLocation.IsInventoryLocation = true;
+    insert testLocation;
+
+    // Update Order with Location
+    ord.Location__c = testLocation.Id;
+    update ord;
+
+    // Create ProductItem with low maximum inventory
+    Product2 product = [SELECT Id FROM Product2 WHERE Name = :PRODUCT_NAME LIMIT 1];
+    ProductItem inventory = new ProductItem(
+      Product2Id = product.Id,
+      LocationId = testLocation.Id,
+      QuantityOnHand = 50,
+      Maximum_Product_Inventory__c = 60 // This will trigger warning since OrderItem quantity + OnHand > Max
+    );
+    insert inventory;
+
+    Test.startTest();
+    Map<String, Object> result = OrderController.getOrder(
+      ord.Id,
+      'Order'
+    );
+    Test.stopTest();
+
+    // Verify the results
+    System.assertNotEquals(null, result, 'Result should not be null');
+    List<Map<String, Object>> combinedData = (List<Map<String, Object>>)result.get('orderProducts');
+    
+    // Find items with warnings
+    Boolean foundWarning = false;
+    for (Map<String, Object> item : combinedData) {
+      if (item.get('Product2Id') == product.Id) {
+        System.assertEquals(true, item.get('hasWarning'), 'Should have warning flag');
+        System.assertEquals(1, item.get('warningPriority'), 'Should have high warning priority');
+        foundWarning = true;
+      }
+    }
+    System.assert(foundWarning, 'Should have found at least one item with warning');
   }
 }
