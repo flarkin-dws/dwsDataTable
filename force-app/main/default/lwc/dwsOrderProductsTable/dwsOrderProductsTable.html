@@ -1,8 +1,8 @@
 <template>
   <lightning-card
     variant="Narrow"
-    title="dwsOrderProductsTable"
-    icon-name="standard:products"
+    title={cardTitle}
+    icon-name={cardIcon}
   >
     <!-- Show Spinner when Loading -->
     <div if:true={isLoading} class="slds-spinner-container">

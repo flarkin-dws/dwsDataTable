@@ -25,7 +25,7 @@ public class OrderControllerTest {
   private static final String PRODUCT_NAME = 'OrderCon';
   private static final String ACCOUNT_NAME = 'OrderCon Acc - Appalachia';
   private static final String ORDER_NAME = 'Order Test';
-  private static final String PROCESS_DEFINITION_NAME = 'Supplies_APPALACHIAN';
+  private static final String PROCESS_DEFINITION_NAME = 'Supplies - APPALACHIA';
 
   @TestSetup
   public static void setupTestData() {
@@ -289,7 +289,8 @@ public class OrderControllerTest {
     Schema.Location testLocation = new Schema.Location();
     testLocation.Name = 'Test Location';
     testLocation.LocationType = 'Warehouse';
-    testLocation.IsInventoryLocation = true;
+    testLocation.Inventory_Type__c = 'PA Warehouse';
+    testLocation.Region__c = 'Appalachia';
     insert testLocation;
 
     // Update Order with Location
@@ -374,7 +375,8 @@ public class OrderControllerTest {
     Schema.Location testLocation = new Schema.Location();
     testLocation.Name = 'Test Location';
     testLocation.LocationType = 'Warehouse';
-    testLocation.IsInventoryLocation = true;
+    testLocation.Inventory_Type__c = 'PA Warehouse';
+    testLocation.Region__c = 'Appalachia';
     insert testLocation;
 
     // Update Order with Location

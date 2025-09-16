@@ -28,7 +28,7 @@ public class OpportunityControllerTestkb {
   private static final String ACCOUNT_NAME = 'OppCon Acc';
   private static final String CLIENT_TYPE = 'Associate';
   private static final String OPPORTUNITY_NAME = 'Opp Test';
-  private static final String PROCESS_DEFINITION_NAME = 'Opportunity_Pricing_Agreement_No_VP_req2';
+  private static final String PROCESS_DEFINITION_NAME = 'Billable - APPALACHIA';
 
   @TestSetup
   static void setupTestData() {
