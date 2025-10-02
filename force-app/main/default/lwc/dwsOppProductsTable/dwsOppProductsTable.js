@@ -1,7 +1,6 @@
 import { api, LightningElement } from "lwc";
-import getOpportunityLineItems from "@salesforce/apex/OpportunityController.getOpportunityLineItemsByOrder";
-import getOpportunityLineItemsWithDetails from "@salesforce/apex/OpportunityController.getOpportunityLineItemsByOrderWithDetails";
 import getOpportunities from "@salesforce/apex/OpportunityController.getOpportunities";
+//import getOpportunityLineItems from "@salesforce/apex/OpportunityController.getOpportunityLineItems";
 
 // OpportunityLineItem imports
 import OLI_PRODUCT_NAME_FIELD from "@salesforce/schema/OpportunityLineItem.Product_Name__c";
@@ -82,78 +81,104 @@ const opportunityProductColumns = [
 ];
 
 export default class DwsOppProductsTable extends LightningElement {
-  @api recordId; // The ID of the current record (Order or ProcessInstanceWorkitem/Step)
+  @api recordId; // The ID of the current record (ProcessInstanceWorkitem/Step)
   @api objectApiName; // The API name of the object
 
   isLoading = true;
-  data;
+  objectId;
+  data = [];
   columns;
   error;
+  testString;
+
+  // Computed property for the card title
+  get cardTitle() {
+    if (!this.shouldDisplay) return '';
+    return 'Opportunity Products';
+  }
+
+  // Computed property for the card icon
+  get cardIcon() {
+    if (!this.shouldDisplay) return '';
+    return 'standard:opportunity_line_item';
+  }
+
+  get shouldDisplay() {
+    // First check if we have a recordId
+    if (!this.recordId) return false;
+    
+    // Handle direct Opportunity pages
+    if (this.objectApiName === 'Opportunity') {
+      return String(this.recordId).startsWith('006') && this.hasData;
+    }
+    
+    // Handle approval process pages
+    if (this.objectApiName === 'ProcessInstanceWorkitem' || this.objectApiName === 'ProcessInstanceStep') {
+      // Only show if we have opportunity line items and a valid target object
+      return this.hasData && this.objectId;
+    } 
+    
+    return false;
+  }
+
+  // Helper computed property to check if we have data to display
+  get hasData() {
+    return this.data && this.data.length > 0;
+  }
 
   connectedCallback() {
-    this.fetchData();
+    // Add debug logging for initialization
+    console.log('Component initialized with:', {
+      recordId: this.recordId,
+      objectApiName: this.objectApiName,
+      type: typeof this.objectApiName
+    });
+    
+    // Fetch data for supported object types
+    if (this.objectApiName === 'Opportunity' || 
+        this.objectApiName === 'ProcessInstanceWorkitem' || 
+        this.objectApiName === 'ProcessInstanceStep') {
+      this.fetchData();
+    } else {
+      this.isLoading = false;
+      console.log('Not fetching data - unsupported object type:', this.objectApiName);
+    }
   }
 
   fetchData() {
-    console.log('fetchData called with recordId:', this.recordId, 'objectApiName:', this.objectApiName);
+    console.log('[JS 144] fetchData called with recordId:', this.recordId, 'objectApiName:', this.objectApiName);
     
     if (this.objectApiName === 'ProcessInstanceWorkitem' || this.objectApiName === 'ProcessInstanceStep') {
       // Handle approval pages - get opportunity line items through the approval process
-      console.log('Fetching data for approval page...');
+      console.log('[JS 148] This is a ProcessInstanceWorkItem or ProcessInstanceStep.' + this.recordId);
       getOpportunities({
         recordId: this.recordId,
-        objectName: this.objectApiName
       })
         .then((result) => {
-          console.log('getOpportunities result:', result);
+          console.log('[Line 154] testString (should be ProcessInstanceId) result:', this.testString);
+          console.log('[Line 155] getOpportunities result:', result);
+          this.isLoading = false;
+          // Handle the new Map response structure
           if (result && result.lineItems && result.lineItems.length > 0) {
-            this.isLoading = false;
-            this.data = result.lineItems;
+            // Ensure each line item has an Id field for the datatable key-field
+            this.data = result.lineItems.map((item, index) => ({
+              ...item,
+              id: item.Id || `row-${index}` // Use existing Id or create a unique key
+            }));
+            this.objectId = result.targetObjectId;
+            console.log('[JS 160] objectId:', this.objectId);
+            console.log('[JS 161] Processed data:', this.data);
+            console.log('[JS 162] shouldDisplay after data load:', this.shouldDisplay);
             this.columns = opportunityProductColumns;
-            console.log('Successfully loaded', result.lineItems.length, 'opportunity line items');
+            console.log('Successfully loaded', result.lineItems.length, 'opportunity line items for opportunity:', result.targetObjectId);
           } else {
             console.warn("No opportunity line items found for this ProcessInstanceWorkitem/Step.");
-            this.isLoading = false;
             this.data = [];
           }
         })
         .catch((error) => {
           this.error = error;
           console.error("Error retrieving opportunity data:", error);
-          this.isLoading = false;
-        });
-    } else if (this.objectApiName === 'Order') {
-      // Handle Order record pages - get opportunity line items related to this order
-      console.log('Fetching data for Order page...');
-      getOpportunityLineItemsWithDetails({
-        orderId: this.recordId
-      })
-        .then((result) => {
-          console.log('getOpportunityLineItemsWithDetails result:', result);
-          if (result && result.lineItems && result.lineItems.length > 0) {
-            this.isLoading = false;
-            this.data = result.lineItems;
-            this.columns = opportunityProductColumns;
-            console.log('Successfully loaded', result.lineItems.length, 'opportunity line items');
-            console.log('Opportunity details:', {
-              hasOpportunity: result.hasOpportunity,
-              opportunityId: result.opportunityId,
-              opportunityName: result.opportunityName,
-              accountName: result.accountName
-            });
-          } else {
-            console.warn("No opportunity line items found for this Order.");
-            console.log('Result details:', {
-              hasOpportunity: result?.hasOpportunity,
-              message: result?.message
-            });
-            this.isLoading = false;
-            this.data = [];
-          }
-        })
-        .catch((error) => {
-          this.error = error;
-          console.error("Error retrieving opportunity line items:", error);
           this.isLoading = false;
         });
     } else {
